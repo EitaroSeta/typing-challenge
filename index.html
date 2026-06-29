@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タイピングチャレンジ</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #050302;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      user-select: none;
+    }
+    #game-container {
+      width: 800px; height: 600px; position: relative;
+      background:
+        radial-gradient(ellipse at 15% 10%, rgba(255,160,0,0.08) 0%, transparent 40%),
+        radial-gradient(ellipse at 85% 10%, rgba(255,160,0,0.08) 0%, transparent 40%),
+        linear-gradient(180deg, #0d0806 0%, #1a0e06 45%, #8b6830 75%, #c4a040 100%);
+      border: 3px solid #7a5a10;
+      border-radius: 6px; overflow: hidden;
+      box-shadow: 0 0 80px rgba(200,130,30,0.25), inset 0 0 120px rgba(0,0,0,0.6);
+    }
+    #game-container::before, #game-container::after {
+      content: ''; position: absolute; top: 0; bottom: 0; width: 58px;
+      background: repeating-linear-gradient(180deg, #3a1e08 0px, #291408 25px, #3a1e08 50px);
+      border: 2px solid #5a3010; z-index: 2;
+    }
+    #game-container::before { left: 0; box-shadow: 4px 0 15px rgba(0,0,0,0.4); }
+    #game-container::after  { right: 0; box-shadow: -4px 0 15px rgba(0,0,0,0.4); }
+    .torch { position: absolute; top: 20px; font-size: 28px; z-index: 3; animation: torchFlicker 0.25s infinite alternate; }
+    .torch-l { left: 15px; } .torch-r { right: 15px; }
+    @keyframes torchFlicker {
+      from { filter: brightness(1); transform: scale(1); }
+      to   { filter: brightness(1.4) hue-rotate(15deg); transform: scale(1.08); }
+    }
+    .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+    .screen.active { display: flex; }
+    #game-screen.active { display: block; }
+
+    /* TITLE */
+    #title-screen { background: radial-gradient(ellipse at center, #1c0f04 0%, #05030200 100%); }
+    .title-sword { font-size: 72px; margin-bottom: 5px; animation: swordPulse 2s ease-in-out infinite; }
+    @keyframes swordPulse {
+      0%,100% { transform: scale(1) rotate(-5deg); filter: drop-shadow(0 0 15px #ff8800); }
+      50%      { transform: scale(1.1) rotate(5deg); filter: drop-shadow(0 0 35px #ff2200); }
+    }
+    .title-main { font-size: 54px; font-weight: 900; color: #ffd700; text-shadow: 0 0 20px #ff8800, 0 0 50px #ff4400, 4px 4px 0 #6b2e00; letter-spacing: 5px; line-height: 1.15; text-align: center; margin-bottom: 8px; }
+    .title-sub { color: #c4a040; font-size: 13px; letter-spacing: 4px; margin-bottom: 45px; opacity: 0.85; }
+
+    /* BUTTONS */
+    .btn { background: linear-gradient(180deg, #e86000, #b83000); color: #fff9e8; border: 2px solid #ff8822; padding: 13px 38px; font-size: 18px; font-weight: 700; cursor: pointer; border-radius: 4px; letter-spacing: 2px; transition: all 0.12s; text-shadow: 0 2px 4px rgba(0,0,0,0.5); box-shadow: 0 4px 18px rgba(200,70,0,0.5); margin: 5px; }
+    .btn:hover  { background: linear-gradient(180deg, #ff7700, #ee4400); transform: translateY(-2px); box-shadow: 0 6px 22px rgba(220,80,0,0.7); }
+    .btn:active { transform: translateY(1px); }
+    .btn-blue { background: linear-gradient(180deg, #2255aa, #113377); border-color: #5588cc; box-shadow: 0 4px 18px rgba(40,80,180,0.5); }
+    .btn-blue:hover { background: linear-gradient(180deg, #3366bb, #224488); }
+    .btn-gold { background: linear-gradient(180deg, #cc8800, #8b5500); border-color: #ffbb22; box-shadow: 0 4px 18px rgba(180,120,0,0.5); }
+    .btn-gold:hover { background: linear-gradient(180deg, #ddaa00, #aa6600); }
+
+    /* MODE */
+    #mode-screen h2 { color: #ffd700; font-size: 28px; letter-spacing: 3px; text-shadow: 0 0 15px #ff8800; margin-bottom: 6px; }
+    .mode-sub { color: #a07820; font-size: 12px; letter-spacing: 3px; margin-bottom: 30px; }
+    .mode-grid { display: flex; gap: 16px; margin-bottom: 24px; }
+    .mode-card { width: 170px; height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 13px; border-radius: 6px; }
+    .mode-card .flag { font-size: 38px; } .mode-card .lang { font-size: 18px; font-weight: 700; } .mode-card .hint { font-size: 11px; opacity: 0.65; }
+
+    /* HUD */
+    #hud { position: absolute; top: 0; left: 58px; right: 58px; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: rgba(0,0,0,0.7); border-bottom: 2px solid #6a4a08; z-index: 15; }
+    .hud-item { color: #ffd700; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+    #lives-el { font-size: 20px; letter-spacing: 3px; }
+    #mute-btn { background: none; border: 1px solid #5a3a08; border-radius: 3px; font-size: 16px; cursor: pointer; padding: 2px 6px; opacity: 0.7; transition: opacity 0.1s; }
+    #mute-btn:hover { opacity: 1; }
+
+    /* CROWD */
+    #crowd { position: absolute; top: 48px; left: 58px; right: 58px; height: 70px; display: flex; flex-wrap: wrap; gap: 3px; padding: 4px 8px; overflow: hidden; opacity: 0.35; z-index: 4; }
+    .crowd-m { font-size: 11px; animation: crowdWave 2s ease-in-out infinite; }
+    @keyframes crowdWave { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+    /* ARENA */
+    #arena { position: absolute; top: 48px; left: 58px; right: 58px; bottom: 155px; display: flex; align-items: center; justify-content: center; z-index: 5; }
+    #enemy-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+    /* WORD BUBBLE */
+    #word-bubble { background: rgba(0,0,0,0.85); border: 2px solid #ffd700; border-radius: 8px; padding: 8px 22px; min-width: 200px; text-align: center; position: relative; box-shadow: 0 0 15px rgba(255,215,0,0.25); }
+    #word-bubble::after { content: ''; position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #ffd700; }
+    #jp-el { color: #c0900a; font-size: 16px; min-height: 22px; margin-bottom: 2px; }
+    #word-el { font-size: 26px; font-weight: 700; font-family: 'Courier New', monospace; letter-spacing: 3px; }
+    .w-typed { color: #00ee88; text-shadow: 0 0 8px #00ff88; }
+    .w-remaining { color: #cccccc; }
+
+    /* ENEMY */
+    #enemy-char { font-size: 96px; line-height: 1; filter: drop-shadow(0 0 18px rgba(255,100,0,0.45)); }
+    #enemy-char.shake { animation: enemyShake 0.35s ease; }
+    @keyframes enemyShake {
+      0%   { transform: translateX(0) scale(1); filter: drop-shadow(0 0 40px #ff0000) brightness(3); }
+      20%  { transform: translateX(-20px) scale(0.9); }
+      40%  { transform: translateX(20px) scale(0.9); }
+      60%  { transform: translateX(-12px) scale(0.96); }
+      80%  { transform: translateX(8px) scale(0.98); }
+      100% { transform: translateX(0) scale(1); filter: drop-shadow(0 0 18px rgba(255,100,0,0.45)); }
+    }
+    #enemy-char.defeat-anim { animation: enemyDefeat 0.7s ease forwards; }
+    @keyframes enemyDefeat {
+      0%   { transform: scale(1) rotate(0deg); opacity: 1; filter: brightness(1); }
+      40%  { transform: scale(1.5) rotate(10deg); opacity: 1; filter: brightness(5) hue-rotate(220deg); }
+      100% { transform: scale(0) rotate(30deg); opacity: 0; }
+    }
+    .hp-outer { width: 210px; height: 14px; background: #1a0a0a; border: 2px solid #553322; border-radius: 3px; overflow: hidden; }
+    .hp-inner { height: 100%; background: linear-gradient(180deg, #ee4444, #aa1100); transition: width 0.35s ease; position: relative; }
+    .hp-inner::after { content: ''; position: absolute; top: 2px; left: 3px; right: 3px; height: 3px; background: rgba(255,255,255,0.25); border-radius: 1px; }
+    #hp-text { color: #996644; font-size: 11px; text-align: center; margin-top: 2px; }
+    #enemy-label { color: #ff9966; font-size: 13px; font-weight: 700; letter-spacing: 2px; text-shadow: 0 0 10px #ff4400; }
+
+    /* DAMAGE NUMBERS */
+    .dmg-num { position: absolute; font-size: 30px; font-weight: 900; pointer-events: none; animation: floatUp 1s ease forwards; z-index: 99; }
+    @keyframes floatUp {
+      0%   { transform: translateY(0) scale(0.5); opacity: 1; }
+      50%  { transform: translateY(-50px) scale(1.3); opacity: 1; }
+      100% { transform: translateY(-100px) scale(1); opacity: 0; }
+    }
+
+    /* WAVE BANNER */
+    #wave-banner { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.75); z-index: 30; }
+    #wave-banner.show { display: flex; animation: bannerIn 0.4s ease; }
+    @keyframes bannerIn { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+    .banner-label { color: #a07820; font-size: 20px; letter-spacing: 5px; margin-bottom: 4px; }
+    .banner-num { font-size: 82px; font-weight: 900; color: #ffd700; text-shadow: 0 0 30px #ff8800, 5px 5px 0 #6b2e00; line-height: 1; }
+    .banner-emoji { font-size: 60px; margin-top: 8px; }
+    .banner-name { color: #ff9966; font-size: 16px; letter-spacing: 3px; margin-top: 5px; }
+
+    /* INPUT ZONE */
+    #input-zone { position: absolute; bottom: 50px; left: 58px; right: 58px; height: 105px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(0,0,0,0.72); border-top: 2px solid #6a4a08; border-bottom: 2px solid #6a4a08; z-index: 15; }
+    #typing-input { width: 480px; background: rgba(255,255,255,0.04); border: 2px solid #7a5a10; border-radius: 4px; padding: 10px 16px; color: #00ee88; font-size: 24px; font-family: 'Courier New', monospace; letter-spacing: 4px; text-align: center; outline: none; caret-color: #00ee88; transition: border-color 0.1s, box-shadow 0.1s; }
+    #typing-input:focus { border-color: #ffd700; box-shadow: 0 0 18px rgba(255,215,0,0.3); }
+    #typing-input.err { animation: inputErr 0.25s ease; }
+    @keyframes inputErr { 0%,100% { background: rgba(255,255,255,0.04); } 50% { background: rgba(255,0,0,0.22); border-color: #ff4444; box-shadow: 0 0 15px rgba(255,0,0,0.4); } }
+    .input-hint { color: #5a4010; font-size: 12px; letter-spacing: 1px; }
+
+    /* STATS BAR */
+    #stats-bar { position: absolute; bottom: 0; left: 58px; right: 58px; height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: rgba(0,0,0,0.85); z-index: 15; }
+    .stat-item { color: #a07820; font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+    #combo-el { color: #ff8800; font-size: 13px; }
+    #timer-wrap { display: flex; align-items: center; gap: 8px; }
+    .timer-label { color: #5a4010; font-size: 11px; }
+    #timer-outer { width: 180px; height: 8px; background: #1a1006; border: 1px solid #4a3008; border-radius: 4px; overflow: hidden; }
+    #timer-bar { height: 100%; transition: width 0.1s linear; }
+
+    /* FLASH */
+    #flash { position: absolute; inset: 0; pointer-events: none; z-index: 50; opacity: 0; }
+    #flash.hit  { animation: hitFlash 0.2s ease; }
+    #flash.miss { animation: missFlash 0.3s ease; }
+    @keyframes hitFlash  { 0% { background: rgba(255,220,0,0.4); opacity:1; } 100% { opacity:0; } }
+    @keyframes missFlash { 0% { background: rgba(255,0,0,0.35); opacity:1; } 100% { opacity:0; } }
+
+    /* RESULT */
+    #result-screen { background: radial-gradient(ellipse at center, #1c1004 0%, #050302 100%); gap: 0; }
+    .result-emblem { font-size: 70px; margin-bottom: 8px; }
+    #result-title { font-size: 52px; font-weight: 900; letter-spacing: 4px; margin-bottom: 20px; }
+    #result-title.win  { color: #ffd700; text-shadow: 0 0 25px #ff8800, 4px 4px 0 #6b2e00; }
+    #result-title.lose { color: #ff4444; text-shadow: 0 0 25px #ff0000, 4px 4px 0 #880000; }
+    #result-box { background: rgba(0,0,0,0.55); border: 2px solid #7a5a10; border-radius: 8px; padding: 18px 44px; margin-bottom: 28px; min-width: 300px; }
+    .r-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(120,80,20,0.25); }
+    .r-row:last-child { border-bottom: none; }
+    .r-label { color: #806030; font-size: 14px; } .r-value { color: #ffd700; font-size: 20px; font-weight: 700; }
+    .result-btns { display: flex; gap: 14px; }
+
+    @keyframes containerShake {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-12px); } 40% { transform: translateX(12px); }
+      60% { transform: translateX(-7px); }  80% { transform: translateX(7px); }
+    }
+    #game-container.shake { animation: containerShake 0.3s ease; }
+  </style>
+</head>
+<body>
+<div id="game-container">
+  <div class="torch torch-l">🔦</div>
+  <div class="torch torch-r">🔦</div>
+  <div id="flash"></div>
+
+  <div id="title-screen" class="screen active">
+    <div class="title-sword">⚔️</div>
+    <div class="title-main">タイピング<br>チャレンジ</div>
+    <div class="title-sub">⚔ 最強のタイピスト頂上決戦 ⚔</div>
+    <button class="btn" onclick="showMode()">▶ GAME START</button>
+  </div>
+
+  <div id="mode-screen" class="screen">
+    <h2>言語モード選択</h2>
+    <div class="mode-sub">CHOOSE YOUR LANGUAGE MODE</div>
+    <div class="mode-grid">
+      <button class="btn mode-card" onclick="startGame('english')">
+        <span class="flag">🇺🇸</span><span class="lang">ENGLISH</span><span class="hint">英語ワード</span>
+      </button>
+      <button class="btn btn-blue mode-card" onclick="startGame('japanese')">
+        <span class="flag">🇯🇵</span><span class="lang">日本語</span><span class="hint">ローマ字入力</span>
+      </button>
+      <button class="btn btn-gold mode-card" onclick="startGame('both')">
+        <span class="flag">🌐</span><span class="lang">MIX</span><span class="hint">英語＋日本語</span>
+      </button>
+    </div>
+    <button class="btn btn-blue" style="font-size:13px;padding:8px 22px;" onclick="showTitle()">← 戻る</button>
+  </div>
+
+  <div id="game-screen" class="screen">
+    <div id="crowd"></div>
+    <div id="hud">
+      <div class="hud-item" id="wave-el">WAVE 1/10</div>
+      <div class="hud-item" id="score-el">SCORE: 0</div>
+      <button id="mute-btn" onclick="toggleMute()">🎵</button>
+      <div class="hud-item" id="lives-el">❤️❤️❤️</div>
+    </div>
+    <div id="wave-banner">
+      <div class="banner-label">WAVE</div>
+      <div class="banner-num" id="bnum">1</div>
+      <div class="banner-emoji" id="bemoji"></div>
+      <div class="banner-name" id="bname"></div>
+    </div>
+    <div id="arena">
+      <div id="enemy-wrap">
+        <div id="word-bubble">
+          <div id="jp-el"></div>
+          <div id="word-el"></div>
+        </div>
+        <div id="enemy-char"></div>
+        <div class="hp-outer"><div class="hp-inner" id="hp-bar"></div></div>
+        <div id="hp-text">HP</div>
+        <div id="enemy-label"></div>
+      </div>
+    </div>
+    <div id="input-zone">
+      <input id="typing-input" type="text" placeholder="ここに入力…"
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <div class="input-hint">タイプして敵を倒せ！</div>
+    </div>
+    <div id="stats-bar">
+      <div class="stat-item" id="combo-el">COMBO: 0</div>
+      <div class="stat-item" id="timer-wrap">
+        <span class="timer-label">TIME</span>
+        <div id="timer-outer"><div id="timer-bar"></div></div>
+      </div>
+      <div class="stat-item" id="acc-el">精度: 100%</div>
+    </div>
+  </div>
+
+  <div id="result-screen" class="screen">
+    <div class="result-emblem" id="r-emblem">🏆</div>
+    <div id="result-title" class="win">VICTORY!</div>
+    <div id="result-box">
+      <div class="r-row"><span class="r-label">最終スコア</span><span class="r-value" id="r-score">0</span></div>
+      <div class="r-row"><span class="r-label">クリアWAVE</span><span class="r-value" id="r-wave">0/10</span></div>
+      <div class="r-row"><span class="r-label">最大コンボ</span><span class="r-value" id="r-combo">0</span></div>
+      <div class="r-row"><span class="r-label">精度</span><span class="r-value" id="r-acc">100%</span></div>
+    </div>
+    <div class="result-btns">
+      <button class="btn btn-blue" onclick="showTitle()">タイトルへ</button>
+      <button class="btn" onclick="restartGame()">もう一度！</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════
+// WORD DATA
+// ═══════════════════════════════
+const WORDS = {
+  en: {
+    easy: [
+      'cat','dog','sun','run','fire','hero','star','moon','win','slash',
+      'brave','guard','power','swift','blade','axe','shield','bow','burn','fury',
+      'pit','cut','hex','bolt','dash','hunt','leap','raid','rush','smash',
+      'trap','wrath','zeal','roar','fang','claw','dark','doom','grim','vile',
+      'stab','grip','hack','bane','gore','slay','war','cry','raw','ash'
+    ],
+    medium: [
+      'battle','castle','dragon','knight','warrior','combat','victory','thunder',
+      'courage','ancient','defeat','conquer','blazing','rampage','phantom','shadow',
+      'assault','crusade','menace','pillage','siege','tyrant','vengeance','warlord',
+      'zealot','berserker','darkness','eclipse','fortress','reaper','specter',
+      'wraith','plague','abyss','venom','cursed','terror','dread','hunger','chaos'
+    ],
+    hard: [
+      'gladiator','colosseum','champion','invincible','legendary','devastating',
+      'spectacular','triumphant','unstoppable','annihilate','domination','extraordinary',
+      'indestructible','catastrophic','supernatural','overwhelming','intimidating',
+      'obliteration','incorruptible','transcendent','immortality','perseverance',
+      'undefeatable','unconquerable','merciless','indomitable','exterminate'
+    ]
+  },
+  jp: {
+    easy: [
+      {k:'猫',  r:'ねこ',     t:'neko'},
+      {k:'犬',  r:'いぬ',     t:'inu'},
+      {k:'山',  r:'やま',     t:'yama'},
+      {k:'川',  r:'かわ',     t:'kawa'},
+      {k:'海',  r:'うみ',     t:'umi'},
+      {k:'月',  r:'つき',     t:'tsuki'},
+      {k:'星',  r:'ほし',     t:'hoshi'},
+      {k:'風',  r:'かぜ',     t:'kaze'},
+      {k:'夢',  r:'ゆめ',     t:'yume'},
+      {k:'花',  r:'はな',     t:'hana'},
+      {k:'剣',  r:'けん',     t:'ken'},
+      {k:'盾',  r:'たて',     t:'tate'},
+      {k:'弓',  r:'ゆみ',     t:'yumi'},
+      {k:'炎',  r:'ほのお',   t:'honoo'},
+      {k:'水',  r:'みず',     t:'mizu'},
+      {k:'雷',  r:'かみなり', t:'kaminari'},
+      {k:'氷',  r:'こおり',   t:'koori'},
+      {k:'刀',  r:'かたな',   t:'katana'},
+      {k:'鬼',  r:'おに',     t:'oni'},
+      {k:'命',  r:'いのち',   t:'inochi'},
+      {k:'技',  r:'わざ',     t:'waza'},
+      {k:'空',  r:'そら',     t:'sora'},
+      {k:'闇',  r:'やみ',     t:'yami'},
+      {k:'罠',  r:'わな',     t:'wana'},
+      {k:'岩',  r:'いわ',     t:'iwa'},
+      {k:'斧',  r:'おの',     t:'ono'},
+      {k:'鎖',  r:'くさり',   t:'kusari'},
+      {k:'毒',  r:'どく',     t:'doku'},
+      {k:'血',  r:'ち',       t:'chi'},
+      {k:'骨',  r:'ほね',     t:'hone'}
+    ],
+    medium: [
+      {k:'桜',   r:'さくら',     t:'sakura'},
+      {k:'竜',   r:'りゅう',     t:'ryuu'},
+      {k:'剣士', r:'けんし',     t:'kenshi'},
+      {k:'戦い', r:'たたかい',   t:'tatakai'},
+      {k:'勇者', r:'ゆうしゃ',   t:'yuusha'},
+      {k:'王国', r:'おうこく',   t:'oukoku'},
+      {k:'魔法', r:'まほう',     t:'mahou'},
+      {k:'怪物', r:'かいぶつ',   t:'kaibutsu'},
+      {k:'伝説', r:'でんせつ',   t:'densetsu'},
+      {k:'勝利', r:'しょうり',   t:'shouri'},
+      {k:'英雄', r:'えいゆう',   t:'eiyuu'},
+      {k:'嵐',   r:'あらし',     t:'arashi'},
+      {k:'稲妻', r:'いなずま',   t:'inazuma'},
+      {k:'覇者', r:'はしゃ',     t:'hasha'},
+      {k:'炎龍', r:'えんりゅう', t:'enryuu'},
+      {k:'暗闇', r:'くらやみ',   t:'kurayami'},
+      {k:'亡霊', r:'ぼうれい',   t:'bourei'},
+      {k:'悪魔', r:'あくま',     t:'akuma'},
+      {k:'呪い', r:'のろい',     t:'noroi'},
+      {k:'騎士', r:'きし',       t:'kishi'},
+      {k:'死神', r:'しにがみ',   t:'shinigami'},
+      {k:'試練', r:'しれん',     t:'shiren'},
+      {k:'幻影', r:'げんえい',   t:'genei'},
+      {k:'魔剣', r:'まけん',     t:'maken'},
+      {k:'孤独', r:'こどく',     t:'kodoku'},
+      {k:'魔物', r:'まもの',     t:'mamono'},
+      {k:'封印', r:'ふういん',   t:'fuuin'},
+      {k:'呪文', r:'じゅもん',   t:'jumon'},
+      {k:'宿命', r:'しゅくめい', t:'shukumei'},
+      {k:'地獄', r:'じごく',     t:'jigoku'}
+    ],
+    hard: [
+      {k:'チャンピオン', r:'ちゃんぴおん',     t:'chanpion'},
+      {k:'大将軍',       r:'たいしょうぐん',   t:'taishougun'},
+      {k:'暗黒魔王',     r:'あんこくまおう',   t:'ankokumaou'},
+      {k:'無双剣士',     r:'むそうけんし',     t:'musoukenshi'},
+      {k:'最強戦士',     r:'さいきょうせんし', t:'saikyousenshi'},
+      {k:'竜の咆哮',     r:'りゅうのほうこう', t:'ryuunohoukou'},
+      {k:'紫電一閃',     r:'しでんいっせん',   t:'shidenissen'},
+      {k:'破滅の刃',     r:'はめつのやいば',   t:'hametsunoyaiba'},
+      {k:'滅びの呪文',   r:'ほろびのじゅもん', t:'horobinojumon'},
+      {k:'邪神降臨',     r:'じゃしんこうりん', t:'jashinkourin'},
+      {k:'不死身の魔王', r:'ふじみのまおう',   t:'fujiminomaou'},
+      {k:'闇の王国',     r:'やみのおうこく',   t:'yaminooukoku'},
+      {k:'恐怖の呪縛',   r:'きょうふのじゅばく',t:'kyoufunojubaku'},
+      {k:'終末の審判',   r:'しゅうまつのしんぱん',t:'shuumatsunoshinpan'},
+      {k:'奈落の底',     r:'ならくのそこ',     t:'narakunosoko'}
+    ]
+  }
+};
+
+// ═══════════════════════════════
+// ENEMY DATA
+// ═══════════════════════════════
+const ENEMIES = [
+  {name:'ゴブリン',   en:'GOBLIN',          emoji:'👺', hp:3,  diff:'easy'},
+  {name:'オーク戦士', en:'ORC WARRIOR',      emoji:'🪓', hp:4,  diff:'easy'},
+  {name:'スケルトン', en:'SKELETON',         emoji:'💀', hp:4,  diff:'easy'},
+  {name:'石トロル',   en:'STONE TROLL',      emoji:'🗿', hp:5,  diff:'medium'},
+  {name:'闇の魔女',   en:'DARK WITCH',       emoji:'🧙', hp:5,  diff:'medium'},
+  {name:'炎の精霊',   en:'FIRE SPIRIT',      emoji:'🔥', hp:6,  diff:'medium'},
+  {name:'雷の騎士',   en:'THUNDER KNIGHT',   emoji:'⚡', hp:6,  diff:'hard'},
+  {name:'海竜',       en:'SEA DRAGON',       emoji:'🐲', hp:7,  diff:'hard'},
+  {name:'闇の大魔王', en:'DARK OVERLORD',    emoji:'😈', hp:8,  diff:'hard'},
+  {name:'ハマーン',   en:'HAMAN — FINAL BOSS', emoji:'👑',hp:10, diff:'hard'},
+];
+
+// ═══════════════════════════════
+// STATE
+// ═══════════════════════════════
+const S = {
+  mode:'english', wave:0, score:0, lives:3,
+  combo:0, maxCombo:0, typed:0, correct:0,
+  word:null, progress:'',
+  enemyHP:0, enemyMaxHP:0,
+  active:false, timerIv:null, timerLeft:10, timerMax:10,
+  usedEn:new Set(), usedJp:new Set(),
+};
+let bgmMuted = false;
+
+// ═══════════════════════════════
+// AUDIO CONTEXT
+// ═══════════════════════════════
+let _actx = null;
+function ac() {
+  if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_actx.state === 'suspended') _actx.resume();
+  return _actx;
+}
+
+// Pre-baked noise buffer (reused for all noise SFX)
+let _noiseBuf = null;
+function getNoise(ctx) {
+  if (_noiseBuf) return _noiseBuf;
+  const len = ctx.sampleRate;
+  _noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = _noiseBuf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return _noiseBuf;
+}
+
+// ═══════════════════════════════
+// SFX  (dramatic & metallic)
+// ═══════════════════════════════
+function beep(type) {
+  try {
+    const ctx = ac();
+    const t = ctx.currentTime;
+    const dst = ctx.destination;
+
+    // helpers
+    const O = (freq, shape, start, dur, vol, f2) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = shape || 'sine';
+      o.frequency.setValueAtTime(freq, start);
+      if (f2) o.frequency.exponentialRampToValueAtTime(f2, start + dur);
+      g.gain.setValueAtTime(vol, start);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      o.connect(g); g.connect(dst);
+      o.start(start); o.stop(start + dur + 0.01);
+    };
+    const N = (start, dur, vol, lo, hi) => {
+      const src = ctx.createBufferSource();
+      src.buffer = getNoise(ctx);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = hi  || 8000;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = lo  || 1000;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, start);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      src.connect(hp); hp.connect(lp); lp.connect(g); g.connect(dst);
+      src.start(start); src.stop(start + dur + 0.01);
+    };
+
+    switch (type) {
+
+      case 'key': {
+        // Metallic typewriter: sharp click + brief high ring + sub thud
+        const boost = Math.min(1 + S.combo * 0.08, 2.2); // louder at high combo
+        N(t, 0.022, 0.4 * boost, 3000, 12000);           // high click
+        O(700 + Math.random()*350, 'triangle', t, 0.07, 0.13 * boost); // metallic ring
+        O(90, 'sine', t, 0.05, 0.1 * boost, 40);         // sub thud
+        if (S.combo >= 5) {
+          // extra sizzle at combo
+          N(t, 0.015, 0.2, 6000, 18000);
+        }
+        break;
+      }
+
+      case 'hit': {
+        // Sword impact: deep BOOM + metal CLANG + noise CRACK
+        O(130, 'sine',     t,      0.28, 0.9, 28);   // deep boom
+        O(520, 'sawtooth', t,      0.14, 0.4, 160);  // clang
+        O(1100,'triangle', t,      0.20, 0.18,300);  // high metallic ring
+        N(t, 0.08, 0.55, 300, 9000);                 // impact crack
+        // Distortion on clang layer
+        const ws = ctx.createWaveShaper();
+        const curve = new Float32Array(512);
+        for (let i=0;i<512;i++){const x=i/256-1; curve[i]=Math.tanh(x*6);}
+        ws.curve = curve;
+        const oC = ctx.createOscillator(), gC = ctx.createGain();
+        oC.type='sawtooth'; oC.frequency.setValueAtTime(480,t); oC.frequency.exponentialRampToValueAtTime(120,t+0.1);
+        gC.gain.setValueAtTime(0.35,t); gC.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+        oC.connect(ws); ws.connect(gC); gC.connect(dst);
+        oC.start(t); oC.stop(t+0.13);
+        break;
+      }
+
+      case 'wrong': {
+        // Harsh descending buzz + noise slap
+        O(220,'sawtooth',t, 0.2, 0.3, 70);
+        N(t, 0.04, 0.25, 100, 3000);
+        break;
+      }
+
+      case 'life': {
+        // Dramatic death: triple descending sweep
+        O(480,'sawtooth', t,      0.6, 0.35, 55);
+        O(360,'sawtooth', t+0.06, 0.55,0.25, 45);
+        O(240,'sine',     t+0.12, 0.65,0.3,  35);
+        N(t, 0.12, 0.22, 80, 2000);
+        break;
+      }
+
+      case 'defeat': {
+        // Ominous minor-key ascending arpeggio (dark victory)
+        [220, 261.6, 311.1, 369.9, 440].forEach((f,i) =>
+          O(f,'triangle', t+i*0.11, 0.55, 0.22));
+        O(110,'sine',t,0.7,0.25);
+        N(t, 0.05, 0.2, 200, 4000);
+        break;
+      }
+
+      case 'victory': {
+        // Triumphant fanfare
+        [523,659,784,1047,1319,1568].forEach((f,i) =>
+          O(f,'triangle', t+i*0.11, 0.6, 0.24));
+        O(262,'sine',t,0.8,0.3);
+        N(t+0.55, 0.1, 0.3, 500, 12000);
+        break;
+      }
+    }
+  } catch(e){}
+}
+
+// ═══════════════════════════════
+// BGM — おどろおどろしい
+// ═══════════════════════════════
+const BGM = {
+  nodes: [], master: null, beatTimer: null,
+  beat: 0, bpm: 72, mode: 'normal', active: false,
+
+  start(waveNum) {
+    this.stop();
+    const ctx = ac();
+    if (bgmMuted) return;
+    this.active = true;
+    this.beat = 0;
+    this.bpm   = waveNum >= 9 ? 96 : 68 + waveNum * 2;
+    this.mode  = waveNum >= 9 ? 'boss' : 'normal';
+
+    this.master = ctx.createGain();
+    this.master.gain.setValueAtTime(0, ctx.currentTime);
+    this.master.gain.linearRampToValueAtTime(0.38, ctx.currentTime + 2);
+    this.master.connect(ctx.destination);
+
+    this._startDrone(ctx);
+    this._tick();
+  },
+
+  stop() {
+    this.active = false;
+    if (this.beatTimer) { clearTimeout(this.beatTimer); this.beatTimer = null; }
+    this.nodes.forEach(n => { try { n.stop(); } catch(e){} });
+    this.nodes = [];
+    this.master = null;
+    this.beat = 0;
+  },
+
+  setMute(m) {
+    if (!this.master) return;
+    const ctx = ac();
+    if (m) {
+      this.master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+    } else {
+      this.master.gain.linearRampToValueAtTime(0.38, ctx.currentTime + 0.5);
+    }
+  },
+
+  _startDrone(ctx) {
+    const boss = this.mode === 'boss';
+    // Drone layers: A, E, A (octave) — evil minor
+    const freqs = boss ? [41.2, 55, 82.4, 110] : [55, 82.4, 110];
+    freqs.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      const lp = ctx.createBiquadFilter();
+      o.type = i === 0 ? 'sawtooth' : 'sine';
+      o.frequency.value = f;
+      lp.type = 'lowpass'; lp.frequency.value = 200 + i * 60;
+      g.gain.value = [0.14, 0.10, 0.06, 0.04][i] || 0.04;
+      o.connect(lp); lp.connect(g); g.connect(this.master);
+      o.start(); this.nodes.push(o);
+    });
+
+    // Tremolo LFO on master gain (ominous pulse)
+    const lfoOsc = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfoOsc.frequency.value = boss ? 0.28 : 0.18;
+    lfoGain.gain.value = 0.06;
+    lfoOsc.connect(lfoGain);
+    lfoGain.connect(this.master.gain);
+    lfoOsc.start(); this.nodes.push(lfoOsc);
+  },
+
+  _tick() {
+    if (!this.active) return;
+    const ctx = ac();
+    const t = ctx.currentTime;
+    const beatSec = 60 / this.bpm;
+    const boss = this.mode === 'boss';
+
+    // Kick
+    this._kick(ctx, t);
+
+    // Off-beat ghost note (snare-like metal scrape every other beat)
+    if (this.beat % 2 === 1) this._snare(ctx, t);
+
+    // Ominous chord stab
+    const chordEvery = boss ? 2 : 4;
+    if (this.beat % chordEvery === 0) this._chord(ctx, t);
+
+    // High eerie melody note
+    const eerieEvery = boss ? 4 : 8;
+    if (this.beat % eerieEvery === (boss ? 1 : 3)) {
+      this._eerie(ctx, t + beatSec * 0.3);
+    }
+
+    // Low rumble on every 8th beat (boss only: every 4th)
+    const rumbleEvery = boss ? 4 : 8;
+    if (this.beat % rumbleEvery === rumbleEvery - 1) this._rumble(ctx, t);
+
+    this.beat++;
+    this.beatTimer = setTimeout(() => this._tick(), beatSec * 1000);
+  },
+
+  _kick(ctx, t) {
+    if (!this.master) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(160, t);
+    o.frequency.exponentialRampToValueAtTime(38, t + 0.18);
+    g.gain.setValueAtTime(0.7, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 0.36);
+  },
+
+  _snare(ctx, t) {
+    if (!this.master) return;
+    const src = ctx.createBufferSource();
+    src.buffer = getNoise(ctx);
+    const hp = ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1500;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.09, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+    src.connect(hp); hp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + 0.1);
+  },
+
+  _chord(ctx, t) {
+    if (!this.master) return;
+    // Diminished / tritone chord — maximum dissonance
+    const boss = this.mode === 'boss';
+    const root = boss ? 55 : 110;
+    [root, root*1.335, root*1.587].forEach(f => { // root, tritone, m7
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=600;
+      o.type = 'sawtooth';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.055, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      o.connect(lp); lp.connect(g); g.connect(this.master);
+      o.start(t); o.stop(t + 0.6);
+    });
+  },
+
+  _eerie(ctx, t) {
+    if (!this.master) return;
+    // Chromatic/minor high notes — ghostly
+    const scale = [466.2, 493.9, 554.4, 622.3, 698.5, 739.9, 830.6]; // Bb, B, C#, Eb, F, F#, Ab
+    const f = scale[Math.floor(Math.random() * scale.length)] * (Math.random() > 0.4 ? 2 : 1);
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.setValueAtTime(f * 0.985, t + 0.4); // slight pitch droop = eerie
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.042, t + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+    o.connect(g); g.connect(this.master);
+    o.start(t); o.stop(t + 1.9);
+  },
+
+  _rumble(ctx, t) {
+    if (!this.master) return;
+    const src = ctx.createBufferSource();
+    src.buffer = getNoise(ctx);
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=80;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    src.connect(lp); lp.connect(g); g.connect(this.master);
+    src.start(t); src.stop(t + 0.65);
+  }
+};
+
+// ═══════════════════════════════
+// MUTE
+// ═══════════════════════════════
+function toggleMute() {
+  bgmMuted = !bgmMuted;
+  document.getElementById('mute-btn').textContent = bgmMuted ? '🔇' : '🎵';
+  BGM.setMute(bgmMuted);
+}
+
+// ═══════════════════════════════
+// SCREENS
+// ═══════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showTitle() { stopTimer(); BGM.stop(); showScreen('title-screen'); }
+function showMode()  { showScreen('mode-screen'); }
+
+// ═══════════════════════════════
+// CROWD
+// ═══════════════════════════════
+function buildCrowd() {
+  const el = document.getElementById('crowd');
+  const pool = ['🙋','👋','🤩','😮','😱','🙌','👏','🎉','💪','🔥'];
+  el.innerHTML = '';
+  for (let i = 0; i < 100; i++) {
+    const s = document.createElement('span');
+    s.className = 'crowd-m';
+    s.textContent = pool[Math.floor(Math.random()*pool.length)];
+    s.style.animationDelay = (Math.random()*2) + 's';
+    el.appendChild(s);
+  }
+}
+
+// ═══════════════════════════════
+// WORD SELECTION
+// ═══════════════════════════════
+function pickWord(diff) {
+  const useJp = S.mode === 'japanese' || (S.mode === 'both' && Math.random() > 0.5);
+  if (!useJp) {
+    const pool = WORDS.en[diff];
+    const avail = pool.filter(w => !S.usedEn.has(w));
+    const src = avail.length ? avail : pool;
+    const w = src[Math.floor(Math.random()*src.length)];
+    S.usedEn.add(w);
+    if (S.usedEn.size > pool.length * 0.75) S.usedEn.clear();
+    return {display: w, romaji: w, reading: null};
+  } else {
+    const pool = WORDS.jp[diff];
+    const avail = pool.filter(w => !S.usedJp.has(w.t));
+    const src = avail.length ? avail : pool;
+    const w = src[Math.floor(Math.random()*src.length)];
+    S.usedJp.add(w.t);
+    if (S.usedJp.size > pool.length * 0.75) S.usedJp.clear();
+    return {display: w.k, romaji: w.t, reading: w.r};
+  }
+}
+
+// ═══════════════════════════════
+// HUD
+// ═══════════════════════════════
+function updateHUD() {
+  document.getElementById('wave-el').textContent  = `WAVE ${S.wave}/10`;
+  document.getElementById('score-el').textContent = `SCORE: ${S.score.toLocaleString()}`;
+  const hearts = '❤️'.repeat(Math.max(0,S.lives)) + '🖤'.repeat(Math.max(0,3-S.lives));
+  document.getElementById('lives-el').textContent = hearts;
+  const comboEl = document.getElementById('combo-el');
+  comboEl.textContent = `COMBO: ${S.combo}`;
+  if      (S.combo >= 15) { comboEl.style.cssText='color:#ff0000;font-size:17px;text-shadow:0 0 12px #ff0000;'; }
+  else if (S.combo >= 10) { comboEl.style.cssText='color:#ff3300;font-size:15px;text-shadow:0 0 8px #ff4400;'; }
+  else if (S.combo >=  5) { comboEl.style.cssText='color:#ff7700;font-size:14px;'; }
+  else                    { comboEl.style.cssText='color:#ff8800;font-size:13px;'; }
+  const acc = S.typed ? Math.round(S.correct/S.typed*100) : 100;
+  document.getElementById('acc-el').textContent = `精度: ${acc}%`;
+}
+
+// ═══════════════════════════════
+// TIMER
+// ═══════════════════════════════
+function stopTimer() {
+  if (S.timerIv) { clearInterval(S.timerIv); S.timerIv = null; }
+}
+function startTimer() {
+  stopTimer();
+  S.timerLeft = S.timerMax;
+  renderTimer();
+  S.timerIv = setInterval(() => {
+    S.timerLeft = Math.max(0, S.timerLeft - 0.1);
+    renderTimer();
+    if (S.timerLeft <= 0) onTimeUp();
+  }, 100);
+}
+function renderTimer() {
+  const pct = S.timerLeft / S.timerMax * 100;
+  const bar = document.getElementById('timer-bar');
+  bar.style.width = pct + '%';
+  const r = Math.min(255, Math.floor((1 - pct/100) * 510));
+  const g = Math.min(255, Math.floor((pct/100) * 510));
+  bar.style.background = `rgb(${r},${g},0)`;
+}
+function onTimeUp() {
+  if (!S.active) return;
+  stopTimer();
+  S.combo = 0; S.lives--;
+  beep('life'); flash('miss'); shakeContainer();
+  updateHUD();
+  if (S.lives <= 0) { setTimeout(() => endGame(false), 500); return; }
+  setTimeout(loadWord, 380);
+}
+
+// ═══════════════════════════════
+// GAME FLOW
+// ═══════════════════════════════
+function startGame(mode) {
+  S.mode = mode;
+  S.wave=0; S.score=0; S.lives=3;
+  S.combo=0; S.maxCombo=0; S.typed=0; S.correct=0;
+  S.usedEn=new Set(); S.usedJp=new Set(); S.active=false;
+  buildCrowd();
+  showScreen('game-screen');
+  updateHUD();
+  nextWave();
+}
+
+function nextWave() {
+  S.wave++;
+  if (S.wave > 10) { endGame(true); return; }
+  const enemy = ENEMIES[S.wave - 1];
+  S.enemyHP = enemy.hp; S.enemyMaxHP = enemy.hp;
+  document.getElementById('enemy-char').textContent  = enemy.emoji;
+  document.getElementById('enemy-label').textContent = `${enemy.emoji} ${enemy.name}`;
+  document.getElementById('bnum').textContent   = S.wave;
+  document.getElementById('bemoji').textContent = enemy.emoji;
+  document.getElementById('bname').textContent  = enemy.en;
+  updateHP();
+  showBanner(true);
+  // Switch to boss BGM at wave 9
+  if (S.wave === 1 || S.wave === 9) BGM.start(S.wave);
+  setTimeout(() => { showBanner(false); startRound(); }, 2200);
+}
+
+function showBanner(show) {
+  const b = document.getElementById('wave-banner');
+  b.classList.remove('show');
+  if (show) { b.offsetHeight; b.classList.add('show'); }
+}
+function startRound() {
+  S.active = true;
+  loadWord();
+  document.getElementById('typing-input').focus();
+}
+function loadWord() {
+  stopTimer();
+  S.word = pickWord(ENEMIES[S.wave-1].diff);
+  S.progress = '';
+  renderWord();
+  S.timerMax = Math.max(5, 11 - S.wave * 0.6);
+  startTimer();
+  document.getElementById('typing-input').value = '';
+}
+function renderWord() {
+  const {display, romaji, reading} = S.word;
+  const typed = S.progress, rest = romaji.slice(typed.length);
+  document.getElementById('jp-el').textContent =
+    reading ? `${display}（${reading}）` : '';
+  document.getElementById('word-el').innerHTML =
+    (typed ? `<span class="w-typed">${typed}</span>` : '') +
+    `<span class="w-remaining">${rest}</span>`;
+}
+function updateHP() {
+  const pct = S.enemyHP / S.enemyMaxHP * 100;
+  document.getElementById('hp-bar').style.width = pct + '%';
+  document.getElementById('hp-text').textContent = `HP: ${S.enemyHP} / ${S.enemyMaxHP}`;
+}
+
+// ═══════════════════════════════
+// WORD COMPLETE
+// ═══════════════════════════════
+function onWordDone() {
+  stopTimer();
+  S.enemyHP--; S.combo++;
+  if (S.combo > S.maxCombo) S.maxCombo = S.combo;
+  const timeBonus  = Math.floor(S.timerLeft * 12);
+  const comboBonus = S.combo * 8;
+  const base       = S.wave * 15 + S.word.romaji.length * 6;
+  S.score += base + timeBonus + comboBonus;
+  beep('hit'); flash('hit'); shakeEnemy();
+  spawnDmg(base + timeBonus + comboBonus);
+  updateHP(); updateHUD();
+  if (S.enemyHP <= 0) {
+    S.active = false;
+    setTimeout(() => { beep('defeat'); defeatEnemy(); }, 280);
+  } else {
+    setTimeout(loadWord, 200);
+  }
+}
+function defeatEnemy() {
+  const el = document.getElementById('enemy-char');
+  el.classList.add('defeat-anim');
+  setTimeout(() => { el.classList.remove('defeat-anim'); nextWave(); }, 800);
+}
+
+// ═══════════════════════════════
+// INPUT
+// ═══════════════════════════════
+const _inp = document.getElementById('typing-input');
+// IME が active でも e.code は物理キー位置 ('KeyA'〜'KeyZ') を返す
+// compositionend でIME合成テキストを正解進捗に上書きして表示を戻す
+_inp.addEventListener('compositionend', function() { this.value = S.progress || ''; });
+_inp.addEventListener('keydown', function(e) {
+  if (!S.active || !S.word) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (!/^Key[A-Z]$/.test(e.code)) return;
+  e.preventDefault();
+  const ch = e.code.slice(3).toLowerCase(); // 'KeyA' → 'a'
+  S.typed++;
+  const expected = S.word.romaji[S.progress.length];
+  if (ch === expected) {
+    S.correct++; S.progress += ch;
+    this.value = S.progress; // 正解文字をボックスに表示
+    beep('key'); renderWord();
+    if (S.progress === S.word.romaji) onWordDone();
+  } else {
+    S.combo = 0; beep('wrong');
+    this.classList.remove('err'); this.offsetHeight; this.classList.add('err');
+    updateHUD();
+  }
+  const acc = S.typed ? Math.round(S.correct/S.typed*100) : 100;
+  document.getElementById('acc-el').textContent = `精度: ${acc}%`;
+});
+_inp.addEventListener('blur', function() {
+  if (S.active) setTimeout(() => this.focus(), 80);
+});
+
+// ═══════════════════════════════
+// VFX
+// ═══════════════════════════════
+function flash(type) {
+  const el = document.getElementById('flash');
+  el.className = ''; el.offsetHeight; el.className = type;
+}
+function shakeEnemy() {
+  const el = document.getElementById('enemy-char');
+  el.classList.remove('shake'); el.offsetHeight; el.classList.add('shake');
+  setTimeout(() => el.classList.remove('shake'), 380);
+}
+function shakeContainer() {
+  const el = document.getElementById('game-container');
+  el.classList.remove('shake'); el.offsetHeight; el.classList.add('shake');
+  setTimeout(() => el.classList.remove('shake'), 350);
+}
+function spawnDmg(pts) {
+  const gc = document.getElementById('game-container');
+  const ar = document.getElementById('arena');
+  const r1 = ar.getBoundingClientRect(), r2 = gc.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'dmg-num';
+  el.textContent = '+' + pts;
+  const highCombo = S.combo >= 10;
+  el.style.color      = highCombo ? '#ff4400' : S.combo >= 5 ? '#ff9900' : '#ffe000';
+  el.style.textShadow = `2px 2px 0 ${highCombo ? '#880000' : '#665500'}`;
+  el.style.fontSize   = highCombo ? '38px' : '30px';
+  el.style.left = (r1.left - r2.left + r1.width/2 + (Math.random()-0.5)*80) + 'px';
+  el.style.top  = (r1.top  - r2.top  + r1.height * 0.3) + 'px';
+  gc.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+// ═══════════════════════════════
+// END GAME
+// ═══════════════════════════════
+function endGame(win) {
+  S.active = false; stopTimer(); BGM.stop();
+  setTimeout(() => {
+    showScreen('result-screen');
+    const title  = document.getElementById('result-title');
+    const emblem = document.getElementById('r-emblem');
+    if (win) {
+      title.textContent = 'VICTORY!'; title.className = 'win';
+      emblem.textContent = '🏆'; beep('victory');
+    } else {
+      title.textContent = 'GAME OVER'; title.className = 'lose';
+      emblem.textContent = '💀'; beep('life');
+    }
+    const acc = S.typed ? Math.round(S.correct/S.typed*100) : 100;
+    document.getElementById('r-score').textContent = S.score.toLocaleString();
+    document.getElementById('r-wave').textContent  = `${Math.min(S.wave,10)} / 10`;
+    document.getElementById('r-combo').textContent = S.maxCombo;
+    document.getElementById('r-acc').textContent   = acc + '%';
+  }, win ? 1000 : 400);
+}
+function restartGame() { startGame(S.mode); }
+</script>
+</body>
+</html>
